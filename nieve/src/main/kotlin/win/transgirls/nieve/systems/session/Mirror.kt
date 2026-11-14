@@ -3,11 +3,16 @@ package win.transgirls.nieve.systems.session
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.ByteBufUtil
 import win.transgirls.nieve.systems.network.PacketTable
+import win.transgirls.nieve.tools.Log
 import win.transgirls.nieve.tools.packet
 import win.transgirls.nieve.tools.readVarInt
 import win.transgirls.nieve.tools.writeVarInt
+import kotlin.math.roundToInt
 
-class Mirror(private val ids: PacketTable) {
+class Mirror(private val ids: PacketTable, protocol: Int) {
+    // TODO: rewrite packet handling so we wont ever do this again. I don't think we can use via version easily in nieve, nor do I think having via version on the client connecting to via version nieve server connecting to via version server is a good idea. imagine like 26.1 -> 26.2 -> 26.3 for absolutely no reason
+    private val stepped = protocol >= STEPPED_FROM
+
     private class Chunk(val base: ByteArray) {
         var light: ByteArray? = null
         val deltas = ArrayList<Delta>()
@@ -43,6 +48,7 @@ class Mirror(private val ids: PacketTable) {
     private val slots = LinkedHashMap<Int, ByteArray>()
     private val playerSlots = LinkedHashMap<Int, ByteArray>()
     private var respawn: ByteArray? = null
+    private val reported = HashSet<String>()
     private var playerId = -1
     private var hasPosition = false
     private var px = 0.0
@@ -69,8 +75,13 @@ class Mirror(private val ids: PacketTable) {
         val name = ids.playClientbound[view.readVarInt()] ?: return
         try {
             record(name, view, buf)
-        } catch (_: IndexOutOfBoundsException) {
+        } catch (e: Exception) {
+            report(name, e)
         }
+    }
+
+    private fun report(name: String, cause: Exception) {
+        if (reported.add(name)) Log.exception("mirror", "couldn't read $name", cause)
     }
 
     fun serverbound(buf: ByteBuf) {
@@ -90,12 +101,14 @@ class Mirror(private val ids: PacketTable) {
                     pitch = view.readFloat()
                 }
             }
-        } catch (_: IndexOutOfBoundsException) {
+        } catch (e: Exception) {
+            report(name, e)
         }
     }
 
     fun confirmTeleport(buf: ByteBuf, id: Int) {
         buf.writeVarInt(id)
+        if (!stepped) return
         buf.writeDouble(px)
         buf.writeDouble(py)
         buf.writeDouble(pz)
@@ -269,14 +282,14 @@ class Mirror(private val ids: PacketTable) {
             }
 
             "move_entity_rot" -> entity(view.readVarInt())?.let {
-                view.readBoolean()
+                if (stepped) view.readBoolean()
                 it.yRot = angle(view.readByte())
                 it.xRot = angle(view.readByte())
                 it.rotated = true
             }
 
             "entity_position_sync" -> entity(view.readVarInt())?.let {
-                if (view.readVarInt() == STEPPED) {
+                if (stepped && view.readVarInt() == STEPPED) {
                     repeat(view.readVarInt()) { _ ->
                         move(it, view.readDouble(), view.readDouble(), view.readDouble())
                         view.readVarInt()
@@ -284,6 +297,7 @@ class Mirror(private val ids: PacketTable) {
                 } else {
                     move(it, view.readDouble(), view.readDouble(), view.readDouble())
                 }
+                if (!stepped) repeat(3) { view.readDouble() }
                 it.yRot = view.readFloat()
                 it.xRot = view.readFloat()
                 it.rotated = true
@@ -314,31 +328,29 @@ class Mirror(private val ids: PacketTable) {
         val id = view.readVarInt()
         val entity = Entity().also { it.add = bytes }
         entities[id] = entity
-        try {
-            view.skipBytes(16)
-            view.readVarInt()
-            val positionAt = view.readerIndex() - base
-            entity.x = view.readDouble()
-            entity.y = view.readDouble()
-            entity.z = view.readDouble()
-            val movement = view.readUnsignedByte().toInt()
-            if (movement != 0) {
-                view.skipBytes(5)
-                if (movement and LP_EXTENDED != 0) view.readVarInt()
-            }
-            val rotationAt = view.readerIndex() - base
-            entity.xRot = angle(view.readByte())
-            entity.yRot = angle(view.readByte())
-            entity.head = view.readByte()
-            entity.positionAt = positionAt
-            entity.rotationAt = rotationAt
-        } catch (_: IndexOutOfBoundsException) {
+        view.skipBytes(16)
+        view.readVarInt()
+        val positionAt = view.readerIndex() - base
+        entity.x = view.readDouble()
+        entity.y = view.readDouble()
+        entity.z = view.readDouble()
+        val movement = view.readUnsignedByte().toInt()
+        if (movement != 0) {
+            view.skipBytes(5)
+            if (movement and LP_EXTENDED != 0) view.readVarInt()
         }
+        val rotationAt = view.readerIndex() - base
+        entity.xRot = angle(view.readByte())
+        entity.yRot = angle(view.readByte())
+        entity.head = view.readByte()
+        entity.positionAt = positionAt
+        entity.rotationAt = rotationAt
     }
 
     private fun entity(id: Int) = entities[id] ?: if (id == playerId) Entity().also { entities[id] = it } else null
 
     private fun shift(entity: Entity, view: ByteBuf) {
+        if (!stepped) return delta(entity, view)
         val steps = view.readVarInt() ushr 1
         if (steps == 0) return delta(entity, view)
         repeat(steps) {
@@ -354,7 +366,7 @@ class Mirror(private val ids: PacketTable) {
         move(entity, step(entity.x, xa), step(entity.y, ya), step(entity.z, za))
     }
 
-    private fun step(value: Double, delta: Long) = if (delta == 0L) value else (Math.round(value * 4096.0) + delta) / 4096.0
+    private fun step(value: Double, delta: Long) = if (delta == 0L) value else ((value * 4096.0).roundToInt() + delta) / 4096.0
 
     private fun move(entity: Entity, x: Double, y: Double, z: Double) {
         entity.x = x
@@ -397,6 +409,7 @@ class Mirror(private val ids: PacketTable) {
         private const val LATENCY_ONLY = 0x10
         private const val LP_EXTENDED = 4
         private const val STEPPED = 1
+        private const val STEPPED_FROM = 777
         private const val RAIN_STARTED = 1
         private const val RAIN_STOPPED = 2
         private const val X = 1
