@@ -4,7 +4,7 @@ import win.transgirls.nieve.systems.cli.Command
 import win.transgirls.nieve.systems.network.PacketTable
 import java.util.UUID
 
-//TODO: extract this to its own nieve-api module for it to be on the maven. brainstorm should people need the nieve internals? maybe export a interface for interacting with it no i dont see the point if the api is enough
+// TODO: extract this to its own nieve-api module for it to be on the maven. brainstorm should people need the nieve internals? maybe export a interface for interacting with it no i dont see the point if the api is enough
 interface NievePlugin {
     val name: String
 
