@@ -10,7 +10,11 @@ repositories {
 }
 
 dependencies {
-    testImplementation(kotlin("test"))
+    implementation(project(":shared"))
+    implementation("io.netty:netty-transport:4.2.6.Final")
+    implementation("io.netty:netty-codec-base:4.2.6.Final")
+    implementation("org.jline:jline:3.26.3")
+    implementation("com.google.code.gson:gson:2.11.0")
 }
 
 kotlin {
@@ -21,14 +25,12 @@ tasks.jar {
     archiveBaseName.set("nieve")
     manifest {
         attributes["Main-Class"] = "win.transgirls.nieve.Nieve"
+        attributes["Enable-Native-Access"] = "ALL-UNNAMED"
     }
 
     from({
         configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) }
     })
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-}
-
-tasks.test {
-    useJUnitPlatform()
+    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.EC")
 }
