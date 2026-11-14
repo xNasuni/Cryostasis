@@ -14,5 +14,6 @@ plugins {
 
 rootProject.name = "cryostasis"
 
+include("shared")
 include("mod")
 include("nieve")

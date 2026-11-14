@@ -40,6 +40,9 @@ dependencies {
     modImplementation("net.fabricmc:fabric-loader:${rootProject.property("loader_version")}")
     modImplementation("net.fabricmc:fabric-language-kotlin:${rootProject.property("kotlin_loader_version")}")
     modImplementation("net.fabricmc.fabric-api:fabric-api:${rootProject.property("fabric_version")}")
+
+    implementation(project(":shared"))
+    include(project(":shared"))
 }
 
 loom {
