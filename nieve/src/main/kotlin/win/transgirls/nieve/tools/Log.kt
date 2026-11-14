@@ -9,6 +9,8 @@ object Log {
 
     fun uptime() = duration(System.nanoTime() - start)
 
+    fun uptimeSeconds() = (System.nanoTime() - start) / 1_000_000_000L
+
     fun info(tag: String, message: String) = write("${Colors.BLUE}$tag${Colors.RESET} $message")
 
     fun success(tag: String, message: String) = write("${Colors.BLUE}$tag${Colors.RESET} ${Colors.GREEN}$message${Colors.RESET}")
@@ -16,6 +18,12 @@ object Log {
     fun error(tag: String, message: String) = write("${Colors.BLUE}$tag${Colors.RESET} ${Colors.RED}$message${Colors.RESET}")
 
     fun out(message: String) = write(message)
+
+    fun exception(tag: String, message: String, cause: Throwable) {
+        error(tag, "$message: ${cause.javaClass.simpleName} ${cause.message.orEmpty()}")
+        cause.stackTrace.forEach { sink("${Colors.GRAY}    at $it${Colors.RESET}") }
+        cause.cause?.let { exception(tag, "caused by", it) }
+    }
 
     fun fail(message: String) = write("${Colors.RED}$message${Colors.RESET}")
 
