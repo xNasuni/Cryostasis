@@ -11,6 +11,13 @@
     "requireAnnotations": true
   },
   "client": [
-    "MultiplayerScreenMixin"
+    "ClientConnectionMixin",
+    "ClientLoginNetworkHandlerMixin",
+    "ConnectScreenThreadMixin",
+    "GameMenuScreenMixin",
+    "MinecraftClientMixin",
+    "MultiplayerScreenMixin",
+    "MultiplayerServerListWidgetAccessor",
+    "MultiplayerServerListWidgetMixin"
   ]
 }
