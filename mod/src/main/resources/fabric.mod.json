@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "cryostasis",
+  "version": "${version}",
+  "name": "Cryostasis",
+  "description": "Lets you close Minecraft and still be in the server until you join back.",
+  "authors": [],
+  "icon": "assets/cryostasis/icon.png",
+  "contact": {},
+  "license": "MIT",
+  "mixins": [
+    {
+      "config": "cryostasis.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "win.transgirls.cryostasis.Cryostasis"
+    ]
+  },
+  "depends": {
+    "fabricloader": "*",
+    "fabric-language-kotlin": "*",
+    "minecraft": "*"
+  }
+}
+
