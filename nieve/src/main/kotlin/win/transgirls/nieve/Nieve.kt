@@ -29,6 +29,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
 object Nieve {
+    private const val CLOSE_WAIT_MS = 1000L
+
     private lateinit var channel: Channel
 
     var port = Protocol.NIEVE_PORT
@@ -37,7 +39,12 @@ object Nieve {
     fun stop() {
         Console.halt()
         Log.info("nieve", "shutting down")
-        Sessions.all().forEach { it.disconnect("Nieve is shutting down.") }
+        Sessions.all()
+            .map { session ->
+                session.disconnect("Nieve is shutting down.")
+                session.downstream.closeFuture()
+            }
+            .forEach { it.awaitUninterruptibly(CLOSE_WAIT_MS) }
         Plugins.stop()
         channel.close()
     }
