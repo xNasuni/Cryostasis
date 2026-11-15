@@ -38,6 +38,8 @@ object Nieve {
 
     private var host = "127.0.0.1"
 
+    private val build = Nieve::class.java.getResource("/build.txt")!!.readText().trim()
+
     fun stop() {
         Console.halt()
         Log.info("nieve", "shutting down")
@@ -85,7 +87,7 @@ object Nieve {
                 .bind(host, port)
                 .sync()
                 .channel()
-            Log.success("nieve", "listening on $host:$port")
+            Log.success("nieve", "$build listening on $host:$port")
             Console.start()
             channel.closeFuture().sync()
         } finally {

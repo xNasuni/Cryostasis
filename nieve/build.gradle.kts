@@ -21,6 +21,18 @@ kotlin {
     jvmToolchain((rootProject.property("java_version") as String).toInt())
 }
 
+val commit = providers.exec {
+    commandLine("git", "rev-parse", "--short", "HEAD")
+}.standardOutput.asText.map { it.trim() }
+
+tasks.processResources {
+    val build = commit.map { "${project.version}-$it" }
+    inputs.property("build", build)
+    filesMatching("build.txt") {
+        expand("build" to build.get())
+    }
+}
+
 tasks.jar {
     archiveBaseName.set("nieve")
     manifest {
