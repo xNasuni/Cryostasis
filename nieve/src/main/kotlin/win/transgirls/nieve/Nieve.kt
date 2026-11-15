@@ -30,6 +30,7 @@ import kotlin.system.exitProcess
 
 object Nieve {
     private const val CLOSE_WAIT_MS = 1000L
+    private const val MAX_PORT = 65535
 
     private lateinit var channel: Channel
 
@@ -69,24 +70,17 @@ object Nieve {
 
         Plugins.start(listOf())
 
-        port = args.firstOrNull()?.toInt() ?: Protocol.NIEVE_PORT
+        port = args.firstOrNull()?.let { text ->
+            text.toIntOrNull()?.takeIf { it in 1..MAX_PORT } ?: fail("invalid port '$text', expected 1-$MAX_PORT")
+        } ?: Protocol.NIEVE_PORT
         host = args.getOrNull(1) ?: "127.0.0.1"
         val group = MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())
         try {
-            channel = ServerBootstrap()
-                .group(group)
-                .channel(NioServerSocketChannel::class.java)
-                .childHandler(object : ChannelInitializer<SocketChannel>() {
-                    override fun initChannel(ch: SocketChannel) {
-                        ch.pipeline()
-                            .addLast(Pipelines.FRAME_DECODER, FrameDecoder())
-                            .addLast(Pipelines.FRAME_ENCODER, FrameEncoder())
-                            .addLast(Pipelines.HANDLER, DownstreamHandler())
-                    }
-                })
-                .bind(host, port)
-                .sync()
-                .channel()
+            channel = try {
+                bind(group)
+            } catch (e: Exception) {
+                fail("couldn't listen on $host:$port: ${e.message ?: e.javaClass.simpleName}")
+            }
             Log.success("nieve", "$build listening on $host:$port")
             Console.start()
             channel.closeFuture().sync()
@@ -96,4 +90,24 @@ object Nieve {
             exitProcess(0)
         }
     }
+
+    private fun fail(message: String): Nothing {
+        Log.error("nieve", message)
+        exitProcess(1)
+    }
+
+    private fun bind(group: MultiThreadIoEventLoopGroup): Channel = ServerBootstrap()
+        .group(group)
+        .channel(NioServerSocketChannel::class.java)
+        .childHandler(object : ChannelInitializer<SocketChannel>() {
+            override fun initChannel(ch: SocketChannel) {
+                ch.pipeline()
+                    .addLast(Pipelines.FRAME_DECODER, FrameDecoder())
+                    .addLast(Pipelines.FRAME_ENCODER, FrameEncoder())
+                    .addLast(Pipelines.HANDLER, DownstreamHandler())
+            }
+        })
+        .bind(host, port)
+        .sync()
+        .channel()
 }
