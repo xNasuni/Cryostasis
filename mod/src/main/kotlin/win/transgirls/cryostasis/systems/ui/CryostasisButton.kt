@@ -28,7 +28,7 @@ class CryostasisButton(width: Int, height: Int, label: Text, private val action:
 
     override fun keyPressed(input: KeyInput): Boolean {
         if (!active || !visible || !input.isEnterOrSpace) return false
-        playDownSound(MinecraftClient.getInstance().soundManager)
+        playDownSound(mc.soundManager)
         action.run()
         return true
     }

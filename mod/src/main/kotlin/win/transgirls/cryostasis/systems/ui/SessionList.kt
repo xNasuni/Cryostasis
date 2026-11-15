@@ -1,7 +1,6 @@
 package win.transgirls.cryostasis.systems.ui
 
 import net.minecraft.SharedConstants
-import net.minecraft.client.MinecraftClient
 import net.minecraft.client.gui.Click
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.screen.multiplayer.MultiplayerScreen
@@ -14,6 +13,7 @@ import net.minecraft.client.texture.NativeImage
 import net.minecraft.text.Text
 import net.minecraft.util.Formatting
 import win.transgirls.cryostasis.Cryostasis
+import win.transgirls.cryostasis.Cryostasis.Companion.mc
 import win.transgirls.cryostasis.shared.Protocol
 import win.transgirls.cryostasis.systems.network.NieveLink
 import win.transgirls.cryostasis.tools.duration
@@ -129,13 +129,12 @@ class NieveSessionEntry(session: NieveSession, private var fetchedAt: Long, priv
     var session = session
         private set
 
-    private val client = MinecraftClient.getInstance()
-    private val icon = WorldIcon.forServer(client.textureManager, "cryostasis-${session.id}")
+    private val icon = WorldIcon.forServer(mc.textureManager, "cryostasis-${session.id}")
     private var iconBytes: ByteArray? = null
 
     override fun render(context: DrawContext, mouseX: Int, mouseY: Int, hovered: Boolean, delta: Float) {
         updateIcon()
-        val font = client.textRenderer
+        val font = mc.textRenderer
         val x = contentX + TEXT_OFFSET
         val age = session.uptime + (System.currentTimeMillis() - fetchedAt) / 1000
         val state = if (session.detached) "detached" else "attached"
@@ -204,7 +203,7 @@ class NieveSessionEntry(session: NieveSession, private var fetchedAt: Long, priv
     override fun isOfSameType(entry: MultiplayerServerListWidget.Entry) = entry is NieveSessionEntry && entry.session.id == session.id
 
     override fun connect() {
-        val screen = client.guiManager.currentScreen as? MultiplayerScreen ?: return
+        val screen = mc.guiManager.currentScreen as? MultiplayerScreen ?: return
         screen.connect(
             server ?: ServerInfo(
                 session.origin,
