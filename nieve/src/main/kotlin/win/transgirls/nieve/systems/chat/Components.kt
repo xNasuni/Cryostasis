@@ -60,6 +60,10 @@ object Components {
         return out.append(RESET).toString()
     }
 
+    fun skip(buf: ByteBuf) {
+        tag(buf, buf.readByte().toInt())
+    }
+
     fun legacy(text: String): String {
         val out = StringBuilder()
         emit(text, Style(), out)

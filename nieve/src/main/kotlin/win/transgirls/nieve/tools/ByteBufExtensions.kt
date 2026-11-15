@@ -1,6 +1,7 @@
 package win.transgirls.nieve.tools
 
 import io.netty.buffer.ByteBuf
+import io.netty.buffer.ByteBufUtil
 import io.netty.buffer.Unpooled
 import java.util.UUID
 
@@ -49,11 +50,20 @@ fun ByteBuf.writeByteArray(value: ByteArray) {
     writeBytes(value)
 }
 
+fun ByteBuf.skipPrefixed() {
+    skipBytes(readVarInt())
+}
+
 fun ByteBuf.readUuid(): UUID = UUID(readLong(), readLong())
 
 fun ByteBuf.writeUuid(value: UUID) {
     writeLong(value.mostSignificantBits)
     writeLong(value.leastSignificantBits)
+}
+
+fun encode(id: Int, body: ByteBuf.() -> Unit): ByteArray {
+    val buf = packet(id, body)
+    return ByteBufUtil.getBytes(buf).also { buf.release() }
 }
 
 fun packet(id: Int, body: ByteBuf.() -> Unit): ByteBuf {

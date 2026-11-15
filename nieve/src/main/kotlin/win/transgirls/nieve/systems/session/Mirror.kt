@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf
 import io.netty.buffer.ByteBufUtil
 import win.transgirls.nieve.systems.network.PacketTable
 import win.transgirls.nieve.tools.Log
-import win.transgirls.nieve.tools.packet
+import win.transgirls.nieve.tools.encode
 import win.transgirls.nieve.tools.readVarInt
 import win.transgirls.nieve.tools.writeVarInt
 import kotlin.math.roundToInt
@@ -43,6 +43,8 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
     private val latest = LinkedHashMap<String, ByteArray>()
     private val events = LinkedHashMap<Int, ByteArray>()
     private val history = ArrayDeque<ByteArray>()
+    private val tablist = Tablist(ids)
+    private val scoreboard = Scoreboard(ids)
     private val chunks = LinkedHashMap<Long, Chunk>()
     private val entities = HashMap<Int, Entity>()
     private var inventory: ByteArray? = null
@@ -63,6 +65,8 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
         latest.clear()
         events.clear()
         history.clear()
+        tablist.reset()
+        scoreboard.reset()
         chunks.clear()
         entities.clear()
         inventory = null
@@ -138,6 +142,8 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
         }
         death?.let { out += it }
         events.values.forEach { out += it }
+        out += tablist.replay()
+        out += scoreboard.replay()
         out += history
         inventory?.let { out += it }
         out += slots.values
@@ -208,12 +214,15 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
                 latest[name] = bytes
             }
 
+            "player_info_update" -> tablist.update(view)
+            "player_info_remove" -> tablist.remove(view)
+            "set_objective" -> scoreboard.objective(view)
+            "set_display_objective" -> scoreboard.display(view)
+            "set_score" -> scoreboard.score(view, buf)
+            "reset_score" -> scoreboard.resetScore(view)
+            "set_player_team" -> scoreboard.team(view)
+
             in HISTORY -> {
-                if (name == "player_info_update" && view.getUnsignedByte(view.readerIndex())
-                        .toInt() == LATENCY_ONLY
-                ) {
-                    return
-                }
                 history.addLast(bytes)
                 while (history.size > HISTORY_CAP) history.removeFirst()
             }
@@ -409,10 +418,7 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
 
     private fun blockZ(pos: Long) = (pos shl 26 shr 38).toInt()
 
-    private fun build(id: Int, body: ByteBuf.() -> Unit): ByteArray {
-        val buf = packet(id, body)
-        return ByteBufUtil.getBytes(buf).also { buf.release() }
-    }
+    private fun build(id: Int, body: ByteBuf.() -> Unit) = encode(id, body)
 
     companion object {
         // TODO: verify this wont ever fallthrough to the real server for detection security reasons
@@ -420,7 +426,6 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
 
         private const val HISTORY_CAP = 4000
         private const val DELTA_CAP = 1024
-        private const val LATENCY_ONLY = 0x10
         private const val LP_EXTENDED = 4
         private const val STEPPED = 1
         private const val STEPPED_FROM = 777
@@ -463,13 +468,6 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
         )
 
         private val HISTORY = setOf(
-            "player_info_update",
-            "player_info_remove",
-            "set_player_team",
-            "set_objective",
-            "set_display_objective",
-            "set_score",
-            "reset_score",
             "boss_event",
             "update_advancements",
             "recipe_book_add",
