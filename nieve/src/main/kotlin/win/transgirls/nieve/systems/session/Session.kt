@@ -53,6 +53,7 @@ enum class Refusal(val message: String) {
     ENDED("This session has ended."),
     ALREADY_ATTACHED("You're already attached to this session."),
     ANOTHER_CLIENT("Another client is attached to this session."),
+    PROTOCOL("This session runs on a different Minecraft version."),
     BUSY("Nieve is busy right now, try again later.")
 }
 
@@ -350,10 +351,10 @@ class Session(
         return true
     }
 
-    fun attach(channel: Channel) = execute {
+    fun attach(channel: Channel, account: UUID) = execute {
         val problem = when {
             closed -> Refusal.ENDED
-            !detached -> Refusal.ALREADY_ATTACHED
+            !detached -> if (account == uuid) Refusal.ALREADY_ATTACHED else Refusal.ANOTHER_CLIENT
             attachChannel != null -> Refusal.ANOTHER_CLIENT
             phase != Phase.PLAY || snapshot.login == null || snapshot.loginSuccess == null -> Refusal.BUSY
             else -> null
@@ -725,13 +726,6 @@ object Sessions {
     private val sessions = ConcurrentHashMap<Int, Session>()
     private val ids = AtomicInteger()
 
-    fun find(uuid: UUID, host: String, port: Int, protocol: Int) = sessions.values.firstOrNull {
-        it.uuid == uuid && it.port == port && it.host.equals(
-            host,
-            true
-        ) && it.protocol == protocol
-    }
-
     fun add(session: Session) {
         session.id = ids.incrementAndGet()
         sessions[session.id] = session
@@ -745,5 +739,7 @@ object Sessions {
 
     fun all() = sessions.values.sortedBy { it.id }
 
-    fun find(id: String) = id.toIntOrNull()?.let { sessions[it] }
+    fun find(id: Int) = sessions[id]
+
+    fun find(id: String) = id.toIntOrNull()?.let { find(it) }
 }

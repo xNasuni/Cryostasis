@@ -26,6 +26,15 @@ object Routing {
     private val routed = ThreadLocal<Boolean>()
     private val real = ThreadLocal<InetSocketAddress>()
     private val origin = ThreadLocal<String>()
+    private val session = ThreadLocal<Int>()
+
+    @Volatile
+    private var pendingSession = Protocol.NEW_SESSION
+
+    @JvmStatic
+    fun attachTo(id: Int) {
+        pendingSession = id
+    }
 
     @JvmStatic
     fun markLoginThread() {
@@ -35,6 +44,8 @@ object Routing {
     @JvmStatic
     fun route(address: InetSocketAddress): InetSocketAddress {
         if (loginThread.get() != true) return address
+        session.set(pendingSession)
+        pendingSession = Protocol.NEW_SESSION
         Cryostasis.viaNieve = Cryostasis.enabled
         val self = address.port == Cryostasis.nievePort &&
             (
@@ -63,7 +74,15 @@ object Routing {
     fun rememberOrigin(address: String) = origin.set(address)
 
     @JvmStatic
-    fun handshakeHost(host: String): String = if (routed.get() == true) Protocol.encodeHostname(host, origin.get().orEmpty()) else host
+    fun handshakeHost(host: String): String = if (routed.get() == true) {
+        Protocol.encodeRoute(
+            host,
+            origin.get().orEmpty(),
+            session.get() ?: Protocol.NEW_SESSION
+        )
+    } else {
+        host
+    }
 }
 
 object LeavePayload : CustomPayload {
@@ -160,7 +179,7 @@ object NieveLink {
         val input = DataInputStream(socket.getInputStream().buffered())
         out.writePacket(0x00) {
             writeVarInt(SharedConstants.getProtocolVersion())
-            writeString(Protocol.encodeHostname(host, ""))
+            writeString(Protocol.encodeRoute(host, ""))
             writeShort(port)
             writeVarInt(STATUS_INTENT)
         }

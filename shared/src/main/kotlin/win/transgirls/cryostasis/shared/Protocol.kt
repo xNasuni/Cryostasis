@@ -10,13 +10,20 @@ object Protocol {
     private const val MARKER = "nieve"
     private const val SEPARATOR = '\u0000'
 
-    class Hostname(val host: String, val version: Int, val origin: String)
+    const val NEW_SESSION = 0
 
-    fun encodeHostname(host: String, origin: String): String = "$host$SEPARATOR$MARKER$VERSION$SEPARATOR$origin"
+    class Route(val host: String, val version: Int, val origin: String, val session: Int)
 
-    fun decodeHostname(address: String): Hostname? {
+    fun encodeRoute(host: String, origin: String, session: Int = NEW_SESSION): String = "$host$SEPARATOR$MARKER$VERSION$SEPARATOR$origin$SEPARATOR$session"
+
+    fun decodeRoute(address: String): Route? {
         val parts = address.split(SEPARATOR)
-        if (parts.size != 3 || !parts[1].startsWith(MARKER)) return null
-        return Hostname(parts[0], parts[1].removePrefix(MARKER).toIntOrNull() ?: 0, parts[2])
+        if (parts.size != 4 || !parts[1].startsWith(MARKER)) return null
+        return Route(
+            parts[0],
+            parts[1].removePrefix(MARKER).toIntOrNull() ?: 0,
+            parts[2],
+            parts[3].toIntOrNull() ?: return null
+        )
     }
 }

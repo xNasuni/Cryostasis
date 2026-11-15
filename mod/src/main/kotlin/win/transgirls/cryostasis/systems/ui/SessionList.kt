@@ -17,6 +17,7 @@ import win.transgirls.cryostasis.Cryostasis
 import win.transgirls.cryostasis.Cryostasis.Companion.mc
 import win.transgirls.cryostasis.shared.Protocol
 import win.transgirls.cryostasis.systems.network.NieveLink
+import win.transgirls.cryostasis.systems.network.Routing
 import win.transgirls.cryostasis.tools.duration
 import win.transgirls.cryostasis.types.NieveSession
 import java.awt.RenderingHints
@@ -207,6 +208,7 @@ class NieveSessionEntry(session: NieveSession, private var fetchedAt: Long, priv
 
     override fun connect() {
         val screen = mc.guiManager.currentScreen as? MultiplayerScreen ?: return
+        Routing.attachTo(session.id)
         screen.connect(
             server ?: ServerInfo(
                 session.origin,

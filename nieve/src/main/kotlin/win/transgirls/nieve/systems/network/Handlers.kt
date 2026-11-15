@@ -11,6 +11,7 @@ import io.netty.channel.SimpleChannelInboundHandler
 import win.transgirls.cryostasis.shared.Protocol
 import win.transgirls.nieve.systems.network.Pipelines.enableCompression
 import win.transgirls.nieve.systems.session.Detached
+import win.transgirls.nieve.systems.session.Refusal
 import win.transgirls.nieve.systems.session.Session
 import win.transgirls.nieve.systems.session.Sessions
 import win.transgirls.nieve.tools.Log
@@ -44,6 +45,7 @@ class DownstreamHandler : SimpleChannelInboundHandler<ByteBuf>() {
     private var protocol = 0
     private var session: Session? = null
     private var subscriber = false
+    private var attachTo = Protocol.NEW_SESSION
 
     override fun channelRead0(ctx: ChannelHandlerContext, msg: ByteBuf) = when (state) {
         State.HANDSHAKE -> handshake(ctx, msg)
@@ -65,23 +67,24 @@ class DownstreamHandler : SimpleChannelInboundHandler<ByteBuf>() {
         when (intent) {
             Intent.STATUS -> {
                 state = State.STATUS
-                subscriber = Protocol.decodeHostname(address) != null
+                subscriber = Protocol.decodeRoute(address) != null
                 Log.info(if (subscriber) "link" else "ping", "from $remote protocol=$protocol")
             }
 
             Intent.LOGIN, Intent.TRANSFER -> {
                 Log.info("handshake", "from $remote: intent=$intent protocol=$protocol")
-                val hostname = Protocol.decodeHostname(address)
+                val route = Protocol.decodeRoute(address)
                     ?: return reject(ctx, "This server requires you to connect with Cryostasis.")
-                if (hostname.version != Protocol.VERSION) {
+                if (route.version != Protocol.VERSION) {
                     return reject(
                         ctx,
-                        "Version mismatch (Nieve is on ${Protocol.VERSION}, Cryostasis is on ${hostname.version})."
+                        "Version mismatch (Nieve is on ${Protocol.VERSION}, Cryostasis is on ${route.version})."
                     )
                 }
                 val ids = PacketTable.forProtocol(protocol)
                     ?: return reject(ctx, "Protocol $protocol isn't supported by this instance.")
-                session = Session(ctx.channel(), protocol, hostname.host, port, hostname.origin, ids)
+                attachTo = route.session
+                session = Session(ctx.channel(), protocol, route.host, port, route.origin, ids)
                 state = State.LOGIN_START
             }
 
@@ -125,10 +128,12 @@ class DownstreamHandler : SimpleChannelInboundHandler<ByteBuf>() {
         if (msg.readVarInt() != PacketIds.LOGIN_HELLO) return close(ctx)
         s.name = msg.readString()
         s.uuid = msg.readUuid()
-        val existing = Sessions.find(s.uuid, s.host, s.port, protocol)
+        val existing = if (attachTo == Protocol.NEW_SESSION) null else Sessions.find(attachTo)
+        if (attachTo != Protocol.NEW_SESSION && existing == null) return reject(ctx, Refusal.ENDED.message)
+        if (existing != null && existing.protocol != protocol) return reject(ctx, Refusal.PROTOCOL.message)
         Log.info(
             "login",
-            "${s.name} (${s.uuid}) -> ${s.host}:${s.port}${if (existing != null) " (existing session)" else ""}"
+            "${s.name} (${s.uuid}) -> ${existing?.let { "session #${it.id}" } ?: "${s.host}:${s.port}"}"
         )
 
         ctx.writeAndFlush(packet(PacketIds.SET_COMPRESSION) { writeVarInt(COMPRESSION_THRESHOLD) })
@@ -136,7 +141,7 @@ class DownstreamHandler : SimpleChannelInboundHandler<ByteBuf>() {
         state = State.RELAY
         if (existing != null) {
             session = existing
-            return existing.attach(ctx.channel())
+            return existing.attach(ctx.channel(), s.uuid)
         }
 
         Sessions.add(s)
