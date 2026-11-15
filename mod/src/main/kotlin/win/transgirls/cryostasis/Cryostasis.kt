@@ -57,6 +57,7 @@ class Cryostasis : ClientModInitializer {
     }
 
     override fun onInitializeClient() {
+        Config.load()
         NieveLink.start()
         PayloadTypeRegistry.serverboundPlay().register(LeavePayload.ID, LeavePayload.CODEC)
         ClientLoginNetworking.registerGlobalReceiver(Identifier.of(Protocol.AUTH_CHANNEL)) { client, _, buf, _ ->

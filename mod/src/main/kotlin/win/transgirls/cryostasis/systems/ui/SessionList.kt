@@ -12,6 +12,7 @@ import net.minecraft.client.render.RenderPipelines
 import net.minecraft.client.texture.NativeImage
 import net.minecraft.text.Text
 import net.minecraft.util.Formatting
+import win.transgirls.cryostasis.Config
 import win.transgirls.cryostasis.Cryostasis
 import win.transgirls.cryostasis.Cryostasis.Companion.mc
 import win.transgirls.cryostasis.shared.Protocol
@@ -76,6 +77,8 @@ object NieveSessions {
             NieveLink.online -> ServerInfo.Status.INCOMPATIBLE
             else -> ServerInfo.Status.UNREACHABLE
         }
+        info.name = if (Config.remote) "remote" else "local"
+        info.address = "${Cryostasis.nieveHost}:${Cryostasis.nievePort}"
         info.ping = NieveLink.latency
         info.label = if (reachable) motd() else problem()
         info.playerCountLabel = if (reachable) players() else Text.empty()

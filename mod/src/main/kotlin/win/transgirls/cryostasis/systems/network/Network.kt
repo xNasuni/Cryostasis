@@ -14,8 +14,11 @@ import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.IOException
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 object Routing {
@@ -33,7 +36,14 @@ object Routing {
     fun route(address: InetSocketAddress): InetSocketAddress {
         if (loginThread.get() != true) return address
         Cryostasis.viaNieve = Cryostasis.enabled
-        val self = address.port == Cryostasis.nievePort && address.address?.isLoopbackAddress == true
+        val self = address.port == Cryostasis.nievePort &&
+            (
+                address.address?.isLoopbackAddress == true || address.address == runCatching {
+                    InetAddress.getByName(
+                        Cryostasis.nieveHost
+                    )
+                }.getOrNull()
+                )
         if (!Cryostasis.enabled || self) {
             Cryostasis.viaNieve = false
             return address
@@ -115,9 +125,20 @@ object NieveLink {
 
                 latency = -1L
                 update(emptyList(), online = false, failed = Cryostasis.enabled)
-                Thread.sleep(RETRY)
+                wake.tryAcquire(RETRY, TimeUnit.MILLISECONDS)
+                wake.drainPermits()
             }
         }
+    }
+
+    private val wake = Semaphore(0)
+
+    @Volatile
+    private var socket: Socket? = null
+
+    fun reconnect() {
+        socket?.close()
+        wake.release()
     }
 
     private var lastError: String? = null
@@ -131,6 +152,7 @@ object NieveLink {
     }
 
     private fun listen(host: String, port: Int) = Socket().use { socket ->
+        this.socket = socket
         socket.connect(InetSocketAddress(host, port), TIMEOUT)
         live.clear()
 

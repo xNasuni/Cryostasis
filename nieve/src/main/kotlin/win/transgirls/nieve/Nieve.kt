@@ -36,6 +36,8 @@ object Nieve {
     var port = Protocol.NIEVE_PORT
         private set
 
+    private var host = "127.0.0.1"
+
     fun stop() {
         Console.halt()
         Log.info("nieve", "shutting down")
@@ -66,6 +68,7 @@ object Nieve {
         Plugins.start(listOf())
 
         port = args.firstOrNull()?.toInt() ?: Protocol.NIEVE_PORT
+        host = args.getOrNull(1) ?: "127.0.0.1"
         val group = MultiThreadIoEventLoopGroup(NioIoHandler.newFactory())
         try {
             channel = ServerBootstrap()
@@ -79,10 +82,10 @@ object Nieve {
                             .addLast(Pipelines.HANDLER, DownstreamHandler())
                     }
                 })
-                .bind("127.0.0.1", port)
+                .bind(host, port)
                 .sync()
                 .channel()
-            Log.success("nieve", "listening on 127.0.0.1:$port")
+            Log.success("nieve", "listening on $host:$port")
             Console.start()
             channel.closeFuture().sync()
         } finally {
