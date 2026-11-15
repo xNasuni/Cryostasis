@@ -75,7 +75,7 @@ object Console {
 
     fun start() {
         Commands.all
-        terminal = TerminalBuilder.builder().system(true).build()
+        terminal = TerminalBuilder.builder().system(true).ffm(false).build()
         val reader = LineReaderBuilder.builder().terminal(terminal).completer(CommandCompleter).build()
         Log.sink = reader::printAbove
         thread(name = "console", isDaemon = true) {
