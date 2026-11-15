@@ -14,6 +14,9 @@ object Config {
 
     private val file = FabricLoader.getInstance().configDir.resolve("cryostasis.json")
 
+    var enabled = true
+        private set
+
     var remote = false
         private set
 
@@ -23,20 +26,23 @@ object Config {
     fun load() {
         if (Files.exists(file)) {
             val json = JsonParser.parseString(Files.readString(file)).asJsonObject
+            enabled = json.get("enabled")?.asBoolean ?: true
             remote = json.get("remote")?.asBoolean ?: false
             address = json.get("address")?.asString ?: address
         }
         activate()
     }
 
-    fun update(remote: Boolean, address: String): Boolean {
-        if (remote && parse(address) == null) return false
-        val changed = remote != this.remote || (remote && address != this.address)
+    fun update(enabled: Boolean, remote: Boolean, address: String): Boolean {
+        if (enabled && remote && parse(address) == null) return false
+        val changed = enabled != this.enabled || remote != this.remote || (remote && address != this.address)
+        this.enabled = enabled
         this.remote = remote
         if (remote) this.address = address
         Files.writeString(
             file,
             JsonObject().apply {
+                addProperty("enabled", this@Config.enabled)
                 addProperty("remote", this@Config.remote)
                 addProperty("address", this@Config.address)
             }.toString()
@@ -57,6 +63,7 @@ object Config {
     }
 
     private fun activate() {
+        Cryostasis.enabled = enabled
         val endpoint = if (remote) parse(address) else null
         Cryostasis.nieveHost = endpoint?.host ?: LOCAL_HOST
         Cryostasis.nievePort = endpoint?.port ?: Protocol.NIEVE_PORT

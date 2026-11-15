@@ -10,10 +10,15 @@ import net.minecraft.text.Text
 import win.transgirls.cryostasis.Config
 
 class ConfigScreen(private val parent: Screen) : Screen(Text.literal("Cryostasis")) {
+    private lateinit var enabled: CyclingButtonWidget<Boolean>
     private lateinit var remote: CyclingButtonWidget<Boolean>
     private lateinit var address: TextFieldWidget
 
     override fun init() {
+        enabled = addDrawableChild(
+            CyclingButtonWidget.onOffBuilder(Config.enabled)
+                .build(width / 2 - 100, 36, 200, 20, Text.literal("Cryostasis")) { _, _ -> unlock() }
+        )
         remote = addDrawableChild(
             CyclingButtonWidget.onOffBuilder(Config.remote)
                 .build(
@@ -22,30 +27,33 @@ class ConfigScreen(private val parent: Screen) : Screen(Text.literal("Cryostasis
                     200,
                     20,
                     Text.literal("Use Remote Nieve Server")
-                ) { _, value -> unlock(value) }
+                ) { _, _ -> unlock() }
         )
         address = addDrawableChild(TextFieldWidget(textRenderer, width / 2 - 100, 84, 200, 20, Text.literal("Address")))
         address.setMaxLength(255)
         address.text = Config.address
         address.setChangedListener { validate() }
-        unlock(Config.remote)
+        unlock()
         addDrawableChild(
             ButtonWidget.builder(ScreenTexts.DONE) { if (save()) leave() }
                 .dimensions(width / 2 - 100, height - 28, 200, 20).build()
         )
     }
 
-    private fun unlock(enabled: Boolean) {
-        address.setEditable(enabled)
-        address.active = enabled
+    private fun unlock() {
+        val on = enabled.value
+        val custom = on && remote.value
+        remote.active = on
+        address.setEditable(custom)
+        address.active = custom
         validate()
     }
 
     private fun validate() {
-        address.setEditableColor(if (!remote.value || Config.parse(address.text) != null) EDITABLE else INVALID)
+        address.setEditableColor(if (!enabled.value || !remote.value || Config.parse(address.text) != null) EDITABLE else INVALID)
     }
 
-    private fun save() = Config.update(remote.value, address.text.trim())
+    private fun save() = Config.update(enabled.value, remote.value, address.text.trim())
 
     override fun render(context: DrawContext, mouseX: Int, mouseY: Int, delta: Float) {
         super.render(context, mouseX, mouseY, delta)
