@@ -12,7 +12,6 @@ object ChatCommand : Command {
     override fun run(args: List<String>) {
         if (args.isEmpty()) return Log.fail("usage: $usage")
         val session = Viewer.watching ?: return Log.fail("no session selected")
-        if (!session.detached) return Log.fail("${session.label} is currently attached")
         session.say(args.joinToString(" "))
     }
 }
