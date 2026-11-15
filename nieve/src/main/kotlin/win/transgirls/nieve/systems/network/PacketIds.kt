@@ -32,6 +32,8 @@ class PacketTable private constructor(private val ids: Map<String, Int>) {
     val playChunkBatchReceived = id("play/c2s/chunk_batch_received")
     val playCustomPayload = id("play/c2s/custom_payload")
     val playCustomPayloadClientbound = id("play/s2c/custom_payload")
+    val playPlayerChat = id("play/s2c/player_chat")
+    val playDeleteChat = id("play/s2c/delete_chat")
     val playClientTickEnd = id("play/c2s/client_tick_end")
     val configDisconnect = id("configuration/s2c/disconnect")
     val configFinish = id("configuration/c2s/finish_configuration")

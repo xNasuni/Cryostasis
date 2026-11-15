@@ -12,6 +12,7 @@ import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.util.ReferenceCountUtil
 import win.transgirls.cryostasis.shared.Protocol
+import win.transgirls.nieve.systems.chat.ChatSignatures
 import win.transgirls.nieve.systems.chat.Components
 import win.transgirls.nieve.systems.chat.Viewer
 import win.transgirls.nieve.systems.network.CipherDecoder
@@ -97,6 +98,7 @@ class Session(
     val handoff = Handoff(this)
     val snapshot = Snapshot(ids)
     val mirror = Mirror(ids, protocol)
+    val signatures = ChatSignatures()
     val inLogin get() = phase == Phase.LOGIN && !loginFinished
 
     private var loginFinished = false
@@ -112,6 +114,8 @@ class Session(
     private var lastActivity = System.nanoTime()
     private var ticking = false
     private var transferred = false
+    private var chatIndex = 0
+    private var rewriteChat = false
     private var watchdog: ScheduledFuture<*>? = null
 
     override val label get() = if (::name.isInitialized) name else "unknown"
@@ -194,13 +198,18 @@ class Session(
             upstream?.writeAndFlush(packet(ids.playKeepAliveResponse) { writeLong(challenge) })
         }
         if (phase == Phase.PLAY) {
+            if (id == ids.playPlayerChat) {
+                if (rewriteChat) buf = replace(buf, signatures.rewrite(buf, chatIndex++))
+                signatures.record(buf)
+            } else if (rewriteChat && id == ids.playDeleteChat) {
+                buf = replace(buf, signatures.expandDeleted(buf))
+            }
             mirror.clientbound(buf)
             Viewer.feed(this, buf)
             if (id == ids.playTransfer) transferred = true
             if (id == ids.playStartConfiguration) {
                 reconfiguring = true
-                snapshot.reset()
-                mirror.reset()
+                clearState()
             }
         }
         snapshot.record(phase, buf)
@@ -386,6 +395,8 @@ class Session(
         detached = false
         lastActivity = System.nanoTime()
         ticking = false
+        chatIndex = 0
+        rewriteChat = true
         swallowTeleport = true
         swallowLoaded = true
         swallowBatches = 1
@@ -406,8 +417,14 @@ class Session(
         }
     }
 
+    private fun replace(old: ByteBuf, new: ByteBuf): ByteBuf {
+        ReferenceCountUtil.release(old)
+        return new
+    }
+
     override fun say(message: String) = execute {
         val server = upstream ?: return@execute
+        if (phase != Phase.PLAY) return@execute Log.fail("$label isn't in the game")
         if (message.startsWith("/")) {
             server.writeAndFlush(packet(ids.serverbound("chat_command")) { writeString(message.drop(1)) })
         } else {
@@ -464,9 +481,15 @@ class Session(
     }
 
     fun reconfigure() {
+        clearState()
+        phase = Phase.CONFIGURATION
+    }
+
+    private fun clearState() {
         snapshot.reset()
         mirror.reset()
-        phase = Phase.CONFIGURATION
+        signatures.reset()
+        chatIndex = 0
     }
 
     fun reconfigured() {
@@ -617,6 +640,7 @@ object Detached {
 
     private fun play(session: Session, upstream: Channel, buf: ByteBuf) {
         val ids = session.ids
+        if (buf.peekVarInt() == ids.playPlayerChat) session.signatures.record(buf)
         session.mirror.clientbound(buf)
         Viewer.feed(session, buf)
         session.snapshot.record(Phase.PLAY, buf)
