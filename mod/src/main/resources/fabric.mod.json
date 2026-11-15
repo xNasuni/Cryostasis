@@ -20,6 +20,7 @@
       "win.transgirls.cryostasis.Cryostasis"
     ]
   },
+  "accessWidener": "cryostasis.aw",
   "depends": {
     "fabricloader": "*",
     "fabric-language-kotlin": "*",

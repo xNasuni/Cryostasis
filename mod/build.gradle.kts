@@ -49,6 +49,7 @@ loom {
     useIntermediateMappings = true
     intermediaryUrl =
         $$"https://repo.codemc.io/repository/relativitymc/org/relativitymc/intermediary/%1$s/intermediary-%1$s-v2.jar"
+    accessWidenerPath = file("src/main/resources/cryostasis.aw")
 }
 
 tasks.processResources {

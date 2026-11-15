@@ -9,11 +9,15 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import win.transgirls.cryostasis.systems.ui.ConfigButton;
+import win.transgirls.cryostasis.systems.ui.ConfigScreen;
 import win.transgirls.cryostasis.systems.ui.NieveServerEntry;
 import win.transgirls.cryostasis.systems.ui.NieveSessions;
 
+import static win.transgirls.cryostasis.Cryostasis.mc;
+
 @Mixin(MultiplayerScreen.class)
-public class MultiplayerScreenMixin {
+public abstract class MultiplayerScreenMixin {
     @Shadow
     protected MultiplayerServerListWidget serverListWidget;
 
@@ -26,6 +30,12 @@ public class MultiplayerScreenMixin {
     @Unique
     private void cryostasis$rebuild() {
         ((MultiplayerServerListWidgetAccessor) serverListWidget).cryostasis$updateEntries();
+    }
+
+    @Inject(method = "init", at = @At("TAIL"))
+    private void cryostasis$addConfigButton(CallbackInfo ci) {
+        MultiplayerScreen screen = (MultiplayerScreen) (Object) this;
+        screen.addDrawableChild(new ConfigButton(buttonEdit, () -> mc.guiManager.setScreen(new ConfigScreen(screen))));
     }
 
     @Inject(method = "updateButtonActivationStates", at = @At("TAIL"))

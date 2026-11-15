@@ -1,6 +1,5 @@
 package win.transgirls.cryostasis.systems.ui
 
-import net.minecraft.client.MinecraftClient
 import net.minecraft.client.gui.Click
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder
@@ -9,12 +8,20 @@ import net.minecraft.client.input.KeyInput
 import net.minecraft.client.render.RenderPipelines
 import net.minecraft.text.Text
 import net.minecraft.util.Identifier
+import win.transgirls.cryostasis.Cryostasis.Companion.mc
 
-class CryostasisButton(width: Int, height: Int, label: Text, private val action: Runnable) : ClickableWidget(0, 0, width, height, label) {
+open class CryostasisButton(width: Int, height: Int, label: Text, private val action: Runnable) : ClickableWidget(0, 0, width, height, label) {
     override fun renderWidget(context: DrawContext, mouseX: Int, mouseY: Int, delta: Float) {
         val sprite = if (isHovered || isFocused) HIGHLIGHTED else NORMAL
         context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, sprite, x, y, width, height)
-        val font = MinecraftClient.getInstance().textRenderer
+        renderIcon(context)
+        renderLabel(context)
+    }
+
+    protected open fun renderIcon(context: DrawContext) = drawIcon(context, x + width - ICON_INSET, y + (height - ICON_SIZE) / 2)
+
+    protected open fun renderLabel(context: DrawContext) {
+        val font = mc.textRenderer
         context.drawCenteredTextWithShadow(
             font,
             message,
@@ -23,6 +30,8 @@ class CryostasisButton(width: Int, height: Int, label: Text, private val action:
             if (active) ACTIVE else INACTIVE
         )
     }
+
+    protected fun drawIcon(context: DrawContext, left: Int, top: Int) = context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, SNOWFLAKE, left, top, ICON_SIZE, ICON_SIZE)
 
     override fun onClick(click: Click, doubled: Boolean) = action.run()
 
@@ -36,9 +45,12 @@ class CryostasisButton(width: Int, height: Int, label: Text, private val action:
     override fun appendClickableNarrations(builder: NarrationMessageBuilder) = appendDefaultNarrations(builder)
 
     companion object {
+        const val ICON_SIZE = 17
+        private const val ICON_INSET = 20
         private const val ACTIVE = 0xFFFFFFFF.toInt()
         private const val INACTIVE = 0xFFA0A0A0.toInt()
         private val NORMAL = Identifier.of("cryostasis", "widget/button")
         private val HIGHLIGHTED = Identifier.of("cryostasis", "widget/button_highlighted")
+        private val SNOWFLAKE = Identifier.of("cryostasis", "widget/snowflake")
     }
 }
