@@ -12,6 +12,7 @@ import kotlin.math.roundToInt
 class Mirror(private val ids: PacketTable, protocol: Int) {
     // TODO: rewrite packet handling so we wont ever do this again. I don't think we can use via version easily in nieve, nor do I think having via version on the client connecting to via version nieve server connecting to via version server is a good idea. imagine like 26.1 -> 26.2 -> 26.3 for absolutely no reason
     private val stepped = protocol >= STEPPED_FROM
+    val answersTeleportWithMove = !stepped
 
     private class Chunk(val base: ByteArray) {
         var light: ByteArray? = null
@@ -48,6 +49,7 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
     private val slots = LinkedHashMap<Int, ByteArray>()
     private val playerSlots = LinkedHashMap<Int, ByteArray>()
     private var respawn: ByteArray? = null
+    private var death: ByteArray? = null
     private val reported = HashSet<String>()
     private var playerId = -1
     private var hasPosition = false
@@ -67,6 +69,7 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
         slots.clear()
         playerSlots.clear()
         respawn = null
+        death = null
         hasPosition = false
     }
 
@@ -90,6 +93,7 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
         try {
             when (name) {
                 "move_player_pos" -> position(view.readDouble(), view.readDouble(), view.readDouble())
+
                 "move_player_pos_rot" -> {
                     position(view.readDouble(), view.readDouble(), view.readDouble())
                     yaw = view.readFloat()
@@ -132,6 +136,7 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
                 writeInt(0)
             }
         }
+        death?.let { out += it }
         events.values.forEach { out += it }
         out += history
         inventory?.let { out += it }
@@ -186,7 +191,16 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
                 slots.clear()
                 playerSlots.clear()
                 hasPosition = false
+                death = null
                 respawn = bytes
+            }
+
+            "player_combat_kill" -> if (view.readVarInt() == playerId) death = bytes
+
+            "set_health" -> {
+                latest.remove(name)
+                latest[name] = bytes
+                if (view.readFloat() > 0f) death = null
             }
 
             in LATEST -> {

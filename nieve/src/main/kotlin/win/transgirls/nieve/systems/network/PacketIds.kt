@@ -29,6 +29,7 @@ class PacketTable private constructor(private val ids: Map<String, Int>) {
     val playKeepAliveResponse = id("play/c2s/keep_alive")
     val playPong = id("play/c2s/pong")
     val playAcceptTeleport = id("play/c2s/accept_teleportation")
+    val playMovePlayerPosRot = id("play/c2s/move_player_pos_rot")
     val playChunkBatchReceived = id("play/c2s/chunk_batch_received")
     val playCustomPayload = id("play/c2s/custom_payload")
     val playCustomPayloadClientbound = id("play/s2c/custom_payload")

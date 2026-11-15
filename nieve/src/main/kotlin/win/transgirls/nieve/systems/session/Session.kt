@@ -110,6 +110,7 @@ class Session(
     private var swallowTeleport = false
     private var swallowBatches = 0
     private var swallowLoaded = false
+    private var swallowTeleportMove = false
     private var reconfiguring = false
     private var lastActivity = System.nanoTime()
     private var ticking = false
@@ -335,7 +336,12 @@ class Session(
     private fun swallowed(id: Int, buf: ByteBuf): Boolean {
         when {
             swallowTeleport && id == ids.playAcceptTeleport && buf.duplicate().also { it.readVarInt() }
-                .readVarInt() == Mirror.TELEPORT_ID -> swallowTeleport = false
+                .readVarInt() == Mirror.TELEPORT_ID -> {
+                swallowTeleport = false
+                swallowTeleportMove = mirror.answersTeleportWithMove
+            }
+
+            swallowTeleportMove && id == ids.playMovePlayerPosRot -> swallowTeleportMove = false
 
             swallowBatches > 0 && id == ids.playChunkBatchReceived -> swallowBatches--
             swallowLoaded && id == ids.playPlayerLoaded -> swallowLoaded = false
@@ -398,6 +404,7 @@ class Session(
         chatIndex = 0
         rewriteChat = true
         swallowTeleport = true
+        swallowTeleportMove = false
         swallowLoaded = true
         swallowBatches = 1
         channel.write(wrap(snapshot.login!!))
