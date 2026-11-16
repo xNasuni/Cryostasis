@@ -1,15 +1,10 @@
 package win.transgirls.cryostasis.systems.ui
 
 import net.minecraft.SharedConstants
-import net.minecraft.client.gui.Click
-import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.screen.multiplayer.MultiplayerScreen
 import net.minecraft.client.gui.screen.multiplayer.MultiplayerServerListWidget
-import net.minecraft.client.gui.screen.world.WorldIcon
 import net.minecraft.client.network.ServerAddress
 import net.minecraft.client.network.ServerInfo
-import net.minecraft.client.render.RenderPipelines
-import net.minecraft.client.texture.NativeImage
 import net.minecraft.text.Text
 import net.minecraft.util.Formatting
 import win.transgirls.cryostasis.Config
@@ -27,7 +22,6 @@ import javax.imageio.ImageIO
 
 object NieveSessions {
     private var seen = -1
-    private val cache = HashMap<Int, NieveSessionEntry>()
     private val info by lazy {
         ServerInfo(
             "local",
@@ -56,13 +50,8 @@ object NieveSessions {
         val saved = entries.filterIsInstance<MultiplayerServerListWidget.ServerEntry>().map { it.server }
 
         val current = NieveLink.sessions.map { session ->
-            val server = saved.firstOrNull { matches(it, session) }
-            cache.getOrPut(session.id) { NieveSessionEntry(session, session.at, server) }
-                .also { it.update(session, session.at, server) }
+            NieveSessionEntry(widget, screen, session, saved.firstOrNull { matches(it, session) })
         }
-
-        val live = current.map { it.session.id }.toSet()
-        cache.entries.removeAll { (id, entry) -> (id !in live).also { gone -> if (gone) entry.close() } }
         return current + nieve + entries
     }
 
@@ -122,6 +111,62 @@ object NieveSessions {
         return ByteArrayOutputStream().also { ImageIO.write(scaled, "png", it) }.toByteArray()
     }
 
+    @JvmStatic
+    fun info(session: NieveSession, saved: ServerInfo?): ServerInfo {
+        val info = ServerInfo("", "nieve-session-${session.id}", ServerInfo.ServerType.OTHER)
+        info.status = if (session.ping >= 0) ServerInfo.Status.SUCCESSFUL else ServerInfo.Status.PINGING
+        info.ping = session.ping.toLong()
+        info.favicon = saved?.favicon
+        info.label = saved?.label ?: location(session)
+        info.playerCountLabel = Text.literal(session.players.size.toString()).formatted(Formatting.GRAY)
+            .append(Text.literal("/").formatted(Formatting.DARK_GRAY))
+            .append(Text.literal(session.max.toString()).formatted(Formatting.GRAY))
+        info.playerListSummary = names(session)
+        info.version = Text.literal("Nieve")
+        info.protocolVersion = SharedConstants.getProtocolVersion()
+        return info
+    }
+
+    @JvmStatic
+    fun title(session: NieveSession): Text {
+        val age = session.uptime + (System.currentTimeMillis() - session.at) / 1000
+        val state = if (session.detached) "detached" else "attached"
+        return Text.literal("Nieve ").styled { it.withColor(ACCENT_RGB) }
+            .append(
+                Text.literal("$state up ${duration(age)} ${session.name}")
+                    .styled { it.withColor(if (session.detached) GRAY_RGB else GREEN_RGB) }
+            )
+    }
+
+    @JvmStatic
+    fun attach(session: NieveSession, saved: ServerInfo?) {
+        val screen = mc.guiManager.currentScreen as? MultiplayerScreen ?: return
+        Routing.attachTo(session.id)
+        screen.connect(saved ?: ServerInfo(session.origin, session.origin, ServerInfo.ServerType.OTHER))
+    }
+
+    private fun location(session: NieveSession): Text {
+        val origin = ServerAddress.parse(session.origin)
+        val resolved = "${session.host}:${session.port}"
+        return Text.literal(
+            if (resolved.equals(
+                    "${origin.address}:${origin.port}",
+                    true
+                )
+            ) {
+                resolved
+            } else {
+                "$resolved\n${session.origin}"
+            }
+        )
+    }
+
+    private fun names(session: NieveSession): List<Text> {
+        val shown = session.players.take(TOOLTIP_PLAYERS).map { Text.literal(it) as Text }
+        val hidden = session.players.size - shown.size
+        return if (hidden > 0) shown + Text.literal("... and $hidden more") else shown
+    }
+
     private fun matches(server: ServerInfo, session: NieveSession): Boolean {
         val saved = ServerAddress.parse(server.address)
         val origin = ServerAddress.parse(session.origin)
@@ -129,112 +174,8 @@ object NieveSessions {
     }
 }
 
-class NieveSessionEntry(session: NieveSession, private var fetchedAt: Long, private var server: ServerInfo?) : MultiplayerServerListWidget.Entry() {
-    var session = session
-        private set
-
-    private val icon = WorldIcon.forServer(mc.textureManager, "cryostasis-${session.id}")
-    private var iconBytes: ByteArray? = null
-
-    override fun render(context: DrawContext, mouseX: Int, mouseY: Int, hovered: Boolean, delta: Float) {
-        updateIcon()
-        val font = mc.textRenderer
-        val x = contentX + TEXT_OFFSET
-        val age = session.uptime + (System.currentTimeMillis() - fetchedAt) / 1000
-        val state = if (session.detached) "detached" else "attached"
-        context.drawTexture(
-            RenderPipelines.GUI_TEXTURED,
-            icon.textureId,
-            contentX,
-            contentY,
-            0f,
-            0f,
-            ICON,
-            ICON,
-            ICON,
-            ICON
-        )
-        context.drawTextWithShadow(font, "Nieve", x, contentY + 1, ACCENT)
-        context.drawTextWithShadow(
-            font,
-            "$state up ${duration(age)} ${session.name}",
-            x + font.getWidth("Nieve "),
-            contentY + 1,
-            if (session.detached) GRAY else GREEN
-        )
-        val motd = server?.label?.let { font.wrapLines(it, contentWidth - TEXT_OFFSET) }.orEmpty()
-        if (motd.isEmpty()) {
-            val origin = ServerAddress.parse(session.origin)
-            val resolved = "${session.host}:${session.port}"
-            context.drawTextWithShadow(font, resolved, x, contentY + 12, GRAY)
-            if (!resolved.equals("${origin.address}:${origin.port}", true)) {
-                context.drawTextWithShadow(font, session.origin, x, contentY + 12 + font.fontHeight, GRAY)
-            }
-        } else {
-            motd.take(2).forEachIndexed { line, text ->
-                context.drawTextWithShadow(
-                    font,
-                    text,
-                    x,
-                    contentY + 12 + line * font.fontHeight,
-                    GRAY
-                )
-            }
-        }
-    }
-
-    fun update(session: NieveSession, fetchedAt: Long, server: ServerInfo?) {
-        this.session = session
-        this.fetchedAt = fetchedAt
-        this.server = server
-    }
-
-    private fun updateIcon() {
-        val favicon = server?.favicon
-        if (favicon.contentEquals(iconBytes)) return
-        iconBytes = favicon
-        icon.destroy()
-        if (favicon != null) {
-            try {
-                icon.load(NativeImage.read(favicon))
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    override fun getNarration(): Text = Text.literal("Nieve session ${session.name} on ${session.origin}")
-
-    override fun isOfSameType(entry: MultiplayerServerListWidget.Entry) = entry is NieveSessionEntry && entry.session.id == session.id
-
-    override fun connect() {
-        val screen = mc.guiManager.currentScreen as? MultiplayerScreen ?: return
-        Routing.attachTo(session.id)
-        screen.connect(
-            server ?: ServerInfo(
-                session.origin,
-                session.origin,
-                ServerInfo.ServerType.OTHER
-            )
-        )
-    }
-
-    override fun mouseClicked(click: Click, doubled: Boolean): Boolean {
-        if (doubled) connect()
-        return super.mouseClicked(click, doubled)
-    }
-
-    override fun close() = icon.close()
-
-    companion object {
-        private const val ICON = 32
-        private const val TEXT_OFFSET = 35
-        private const val WHITE = 0xFFFFFFFF.toInt()
-        private const val GRAY = 0xFF808080.toInt()
-        private const val GREEN = 0xFF55FF55.toInt()
-    }
-}
-
-private const val ACCENT = 0xFFAFFFFF.toInt()
-
 private const val RED = 0xFF0087
 private const val ACCENT_RGB = 0xAFFFFF
+private const val GRAY_RGB = 0x808080
+private const val GREEN_RGB = 0x55FF55
+private const val TOOLTIP_PLAYERS = 12

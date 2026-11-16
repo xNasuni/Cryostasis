@@ -16,8 +16,12 @@ public class NieveServerEntry extends MultiplayerServerListWidget.ServerEntry {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float delta) {
-        NieveSessions.refresh();
+        prepare();
         super.render(context, mouseX, mouseY, false, delta);
+    }
+
+    protected void prepare() {
+        NieveSessions.refresh();
     }
 
     @Override
