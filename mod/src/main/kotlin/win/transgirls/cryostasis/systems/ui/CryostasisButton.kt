@@ -10,13 +10,25 @@ import net.minecraft.text.Text
 import net.minecraft.util.Identifier
 import win.transgirls.cryostasis.Cryostasis.Companion.mc
 
-open class CryostasisButton(width: Int, height: Int, label: Text, private val action: Runnable) : ClickableWidget(0, 0, width, height, label) {
+open class CryostasisButton @JvmOverloads constructor(
+    width: Int,
+    height: Int,
+    label: Text,
+    private val action: Runnable,
+    private val red: Boolean = false
+) : ClickableWidget(0, 0, width, height, label) {
     override fun renderWidget(context: DrawContext, mouseX: Int, mouseY: Int, delta: Float) {
-        val sprite = if (isHovered || isFocused) HIGHLIGHTED else NORMAL
+        val highlighted = isHovered || isFocused
+        val sprite = when {
+            isRed() -> if (highlighted) RED_HIGHLIGHTED else RED_NORMAL
+            else -> if (highlighted) HIGHLIGHTED else NORMAL
+        }
         context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, sprite, x, y, width, height)
         renderIcon(context)
         renderLabel(context)
     }
+
+    protected open fun isRed() = red
 
     protected open fun renderIcon(context: DrawContext) = drawIcon(context, x + width - ICON_INSET, y + (height - ICON_SIZE) / 2)
 
@@ -31,7 +43,14 @@ open class CryostasisButton(width: Int, height: Int, label: Text, private val ac
         )
     }
 
-    protected fun drawIcon(context: DrawContext, left: Int, top: Int) = context.drawGuiTexture(RenderPipelines.GUI_TEXTURED, SNOWFLAKE, left, top, ICON_SIZE, ICON_SIZE)
+    protected fun drawIcon(context: DrawContext, left: Int, top: Int) = context.drawGuiTexture(
+        RenderPipelines.GUI_TEXTURED,
+        if (isRed()) RED_SNOWFLAKE else SNOWFLAKE,
+        left,
+        top,
+        ICON_SIZE,
+        ICON_SIZE
+    )
 
     override fun onClick(click: Click, doubled: Boolean) = action.run()
 
@@ -52,5 +71,8 @@ open class CryostasisButton(width: Int, height: Int, label: Text, private val ac
         private val NORMAL = Identifier.of("cryostasis", "widget/button")
         private val HIGHLIGHTED = Identifier.of("cryostasis", "widget/button_highlighted")
         private val SNOWFLAKE = Identifier.of("cryostasis", "widget/snowflake")
+        private val RED_NORMAL = Identifier.of("cryostasis", "widget/red_button")
+        private val RED_HIGHLIGHTED = Identifier.of("cryostasis", "widget/red_button_highlighted")
+        private val RED_SNOWFLAKE = Identifier.of("cryostasis", "widget/red_snowflake")
     }
 }
