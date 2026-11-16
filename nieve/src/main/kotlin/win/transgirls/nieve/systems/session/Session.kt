@@ -1,5 +1,6 @@
 package win.transgirls.nieve.systems.session
 
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import io.netty.bootstrap.Bootstrap
 import io.netty.buffer.ByteBuf
@@ -99,6 +100,11 @@ class Session(
     val handoff = Handoff(this)
     val snapshot = Snapshot(ids)
     val mirror = Mirror(ids, protocol)
+
+    init {
+        mirror.onPlayerlist = ::playerlistChanged
+    }
+
     val signatures = ChatSignatures()
     val inLogin get() = phase == Phase.LOGIN && !loginFinished
 
@@ -137,6 +143,20 @@ class Session(
         addProperty("origin", origin)
         addProperty("state", if (detached) "detached" else "attached")
         addProperty("uptime", (System.nanoTime() - createdAt) / 1_000_000_000L)
+        addProperty("ping", mirror.latency(uuid))
+        addProperty("max", mirror.maxPlayers)
+        add("players", JsonArray().apply { mirror.playerlist().forEach(::add) })
+    }
+
+    private var playerlistPending = false
+
+    private fun playerlistChanged() {
+        if (playerlistPending) return
+        playerlistPending = true
+        (upstream?.eventLoop() ?: downstream.eventLoop()).schedule({
+            playerlistPending = false
+            Subscribers.updated(this)
+        }, PLAYERLIST_DELAY_MS, TimeUnit.MILLISECONDS)
     }
 
     private fun connectsToSelf(): Boolean {
@@ -545,6 +565,7 @@ class Session(
         const val TICK_MS = 50L
         const val INACTIVITY_NANOS = 10_000_000_000L
         const val CLOSE_DELAY_MS = 250L
+        const val PLAYERLIST_DELAY_MS = 1000L
     }
 }
 

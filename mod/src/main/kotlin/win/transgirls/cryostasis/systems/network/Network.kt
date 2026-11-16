@@ -243,7 +243,10 @@ object NieveLink {
         port = o.get("port").asInt,
         origin = o.get("origin").asString,
         detached = o.get("state").asString == "detached",
-        uptime = o.get("uptime").asLong
+        uptime = o.get("uptime").asLong,
+        ping = o.get("ping").asInt,
+        players = o.getAsJsonArray("players").map { it.asString },
+        max = o.get("max").asInt
     )
 
     private fun update(found: List<NieveSession>, online: Boolean, failed: Boolean, mismatch: Int = 0): Boolean {

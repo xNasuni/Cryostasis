@@ -8,5 +8,8 @@ data class NieveSession(
     val origin: String,
     val detached: Boolean,
     val uptime: Long,
+    val ping: Int,
+    val players: List<String>,
+    val max: Int,
     val at: Long = System.currentTimeMillis()
 )

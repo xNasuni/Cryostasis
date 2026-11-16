@@ -6,6 +6,7 @@ import win.transgirls.nieve.systems.network.PacketTable
 import win.transgirls.nieve.tools.Log
 import win.transgirls.nieve.tools.encode
 import win.transgirls.nieve.tools.readVarInt
+import win.transgirls.nieve.tools.skipPrefixed
 import win.transgirls.nieve.tools.writeVarInt
 import kotlin.math.roundToInt
 
@@ -13,6 +14,14 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
     // TODO: rewrite packet handling so we wont ever do this again. I don't think we can use via version easily in nieve, nor do I think having via version on the client connecting to via version nieve server connecting to via version server is a good idea. imagine like 26.1 -> 26.2 -> 26.3 for absolutely no reason
     private val stepped = protocol >= STEPPED_FROM
     val answersTeleportWithMove = !stepped
+    var onPlayerlist: () -> Unit = {}
+
+    var maxPlayers = -1
+        private set
+
+    fun playerlist() = tablist.listed()
+
+    fun latency(uuid: java.util.UUID) = tablist.latency(uuid) ?: -1
 
     private class Chunk(val base: ByteArray) {
         var light: ByteArray? = null
@@ -43,7 +52,7 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
     private val latest = LinkedHashMap<String, ByteArray>()
     private val events = LinkedHashMap<Int, ByteArray>()
     private val history = ArrayDeque<ByteArray>()
-    private val tablist = Tablist(ids)
+    private val tablist = Tablist(ids) { onPlayerlist() }
     private val scoreboard = Scoreboard(ids)
     private val chunks = LinkedHashMap<Long, Chunk>()
     private val entities = HashMap<Int, Entity>()
@@ -189,7 +198,13 @@ class Mirror(private val ids: PacketTable, protocol: Int) {
     private fun record(name: String, view: ByteBuf, buf: ByteBuf) {
         val bytes by lazy { ByteBufUtil.getBytes(buf) }
         when (name) {
-            "login" -> playerId = view.readInt()
+            "login" -> {
+                playerId = view.readInt()
+                view.readBoolean()
+                repeat(view.readVarInt()) { view.skipPrefixed() }
+                maxPlayers = view.readVarInt()
+            }
+
             "respawn" -> {
                 chunks.clear()
                 entities.clear()
