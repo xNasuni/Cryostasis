@@ -13,7 +13,9 @@
   "client": [
     "ClientConnectionMixin",
     "ClientLoginNetworkHandlerMixin",
+    "ConfirmScreenMixin",
     "ConnectScreenThreadMixin",
+    "DeathScreenMixin",
     "GameMenuScreenMixin",
     "MinecraftClientMixin",
     "MultiplayerScreenMixin",
