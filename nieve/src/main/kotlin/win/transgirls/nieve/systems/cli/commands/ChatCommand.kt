@@ -6,6 +6,7 @@ import win.transgirls.nieve.tools.Log
 
 object ChatCommand : Command {
     override val name = "chat"
+    override val aliases = listOf("say")
     override val usage = "chat <message>"
     override val description = "sends a message or a command"
 
